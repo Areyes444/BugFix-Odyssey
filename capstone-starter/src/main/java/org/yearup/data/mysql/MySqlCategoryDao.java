@@ -31,10 +31,10 @@ public class MySqlCategoryDao extends MySqlDaoBase implements CategoryDao
                     SELECT category_id
                     , name
                     , description
-                    from easyshop.categories;
+                    FROM categories;
                     """;
 
-            Statement statement = connection.createStatement();
+            PreparedStatement statement = connection.prepareStatement(sql);
 
             ResultSet row = statement.executeQuery(sql);
 
@@ -58,10 +58,11 @@ public class MySqlCategoryDao extends MySqlDaoBase implements CategoryDao
         try(Connection connection = getConnection())
         {
             String sql = """
-                    SELECT name
+                    SELECT category_id
+                    , name
                     , description
-                    from easyshop.categories
-                    where category_id = ?;
+                    FROM categories
+                    WHERE category_id = ?;
                     """;
 
             PreparedStatement statement = connection.prepareStatement(sql);
@@ -89,7 +90,7 @@ public class MySqlCategoryDao extends MySqlDaoBase implements CategoryDao
         try(Connection connection = getConnection())
         {
             String sql = """
-                    insert into easyshop.categories(name, description)
+                    insert into categories(name, description)
                     values(?,?);
                     """;
             PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
@@ -115,7 +116,7 @@ public class MySqlCategoryDao extends MySqlDaoBase implements CategoryDao
         try(Connection connection = getConnection())
         {
             String sql = """
-                    update easyshop.categories
+                    update categories
                     set name = ?
                     , description = ?
                     where category_id = ?;
@@ -136,33 +137,24 @@ public class MySqlCategoryDao extends MySqlDaoBase implements CategoryDao
     }
 
     @Override
-    public void delete(int categoryId) throws SQLException
+    public void delete(int categoryId)
     {
         try(Connection connection = getConnection())
         {
-            String sqlProducts = """
-                    update easyshop.products
-                    set category_id = null
+
+            String sql = """
+                    delete from categories
                     where category_id = ?;
                     """;
 
-            PreparedStatement statementProducts = connection.prepareStatement(sqlProducts);
-            statementProducts.setInt(1, categoryId);
-            statementProducts.executeUpdate();
-
-            String sql = """
-                    delete from easyshop.categories
-                    where catergory_id = ?;
-                    """;
-
-            PreparedStatement statement = connection.prepareStatement(sql);
-            statement.setInt(1, categoryId);
-
-            statement.executeUpdate();
+            try(PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setInt(1, categoryId);
+                statement.executeUpdate();
+            }
         }
         catch (SQLException e)
         {
-            throw e;
+            e.printStackTrace();
         }
     }
 

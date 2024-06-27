@@ -19,46 +19,73 @@ public class MySqlProductDao extends MySqlDaoBase implements ProductDao
     }
 
     @Override
-    public List<Product> search(Integer categoryId, BigDecimal minPrice, BigDecimal maxPrice, String color)
-    {
+    public List<Product> search(Integer categoryId, BigDecimal minPrice, BigDecimal maxPrice, String color) {
         List<Product> products = new ArrayList<>();
 
         String sql = "SELECT * FROM products " +
                 "WHERE (category_id = ? OR ? = -1) " +
-                "   AND (price <= ? OR ? = -1) " +
-                "   AND (color = ? OR ? = '') ";
+                "  AND (price >= ? OR ? IS NULL) " +
+                "  AND (price <= ? OR ? IS NULL) " +
+                "  AND (color = ? OR ? = '') ";
 
         categoryId = categoryId == null ? -1 : categoryId;
-        minPrice = minPrice == null ? new BigDecimal("-1") : minPrice;
-        maxPrice = maxPrice == null ? new BigDecimal("-1") : maxPrice;
+        minPrice = minPrice == null ? BigDecimal.ZERO : minPrice;
         color = color == null ? "" : color;
 
-        try (Connection connection = getConnection())
-        {
+        try (Connection connection = getConnection()) {
             PreparedStatement statement = connection.prepareStatement(sql);
             statement.setInt(1, categoryId);
             statement.setInt(2, categoryId);
             statement.setBigDecimal(3, minPrice);
             statement.setBigDecimal(4, minPrice);
-            statement.setString(5, color);
-            statement.setString(6, color);
+            if (maxPrice != null)
+            {
+                statement.setBigDecimal(5, maxPrice);
+                statement.setBigDecimal(6, maxPrice);
+            } else
+            {
+                BigDecimal reasonableMaxPrice = getMaxPriceFromProducts(connection);
+                statement.setBigDecimal(5, reasonableMaxPrice);    //creating a maxprice that is reasonable as maxprice
+                statement.setBigDecimal(6, reasonableMaxPrice);
+            }
+            statement.setString(7, color);
+            statement.setString(8, color);
 
             ResultSet row = statement.executeQuery();
 
-            while (row.next())
-            {
+            while (row.next()) {
                 Product product = mapRow(row);
                 products.add(product);
             }
-        }
-        catch (SQLException e)
-        {
+        } catch (SQLException e) {
             throw new RuntimeException(e);
         }
 
         return products;
     }
 
+    private BigDecimal getMaxPriceFromProducts(Connection connection) throws SQLException
+    {
+        String sql = """
+                SELECT MAX(price) AS max_price
+                 FROM products
+                """;
+        try (PreparedStatement statement = connection.prepareStatement(sql))
+        {
+            ResultSet resultSet = statement.executeQuery();
+            if (resultSet.next())
+            {
+                BigDecimal maxPrice = resultSet.getBigDecimal("max_price");
+                if (maxPrice == null)
+                {
+                    return BigDecimal.ZERO;
+                }
+                return maxPrice;
+            } else {
+                return BigDecimal.ZERO;
+            }
+        }
+    }
     @Override
     public List<Product> listByCategoryId(int categoryId)
     {

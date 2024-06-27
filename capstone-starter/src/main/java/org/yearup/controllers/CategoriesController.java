@@ -2,6 +2,7 @@ package org.yearup.controllers;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -10,6 +11,7 @@ import org.yearup.data.ProductDao;
 import org.yearup.models.Category;
 import org.yearup.models.Product;
 
+import java.sql.SQLException;
 import java.util.List;
 
 
@@ -52,13 +54,19 @@ public class CategoriesController
     }
 
     // add the appropriate annotation for a get action
+    @PreAuthorize("permitAll()")
     @GetMapping("/{id}")
     public Category getById(@PathVariable int id)
     {
         // get the category by id
         try
         {
-            return categoryDao.getById(id);
+            Category category = categoryDao.getById(id);
+
+            if (category == null){
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+            }
+            return category;
 
         }catch (Exception ex)
         {
@@ -69,67 +77,71 @@ public class CategoriesController
     // the url to return all products in category 1 would look like this
     // https://localhost:8080/categories/1/products
     @GetMapping("{categoryId}/products")
+    @PreAuthorize("permitAll()")
     public List<Product> getProductsById(@PathVariable int categoryId)
     {
         // get a list of product by categoryId
-        try
-        {
-            return productDao.listByCategoryId(categoryId);
-        }catch (Exception ex)
-        {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Oops.. Failed to get list of products");
-        }
+        try {
+            if (productDao.listByCategoryId(categoryId).isEmpty())
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+            else {
+                return productDao.listByCategoryId(categoryId);
+            }
+        }catch (Exception e){
+            throw new RuntimeException(e);
+    }
     }
 
     // add annotation to call this method for a POST action
     // add annotation to ensure that only an ADMIN can call this function
-    @PostMapping("")
-    @PreAuthorize("hasRole('Role_ADMIN')")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Category addCategory(@RequestBody Category category)
     {
-        // insert the category
-        try
-        {
-            return categoryDao.create(category);
-        }
-        catch (Exception ex)
-        {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Oops...Can't add Category");
-        }
+        var newCategory = categoryDao.create(category);
+        return newCategory;
     }
 
     // add annotation to call this method for a PUT (update) action - the url path must include the categoryId
     // add annotation to ensure that only an ADMIN can call this function
-    @PutMapping("{id}")
-    @PreAuthorize("hasRole('Role_ADMIN')")
-    public void updateCategory(@PathVariable int id, @RequestBody Category category)
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @PutMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public ResponseEntity<Category> updateCategory(@PathVariable int id, @RequestBody Category category)
     {
-        // update the category by id
-        try
+        Category inventoryCategory = categoryDao.getById(id);
+        if ((inventoryCategory != null))
         {
+            category.setCategoryId(id);
             categoryDao.update(id, category);
+            return ResponseEntity.ok(category);
+        }else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
         }
-        catch (Exception ex)
-        {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Oops..Failed to update Category");
-        }
+
     }
 
 
-    // add annotation to call this method for a DELETE action - the url path must include the categoryId
-    // add annotation to ensure that only an ADMIN can call this function
     @DeleteMapping("{id}")
-    @PreAuthorize("hasRole('Role_ADMIN')")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @ResponseStatus(value=HttpStatus.NO_CONTENT)
     public void deleteCategory(@PathVariable int id)
     {
+        // delete the category by id
         try
         {
+            Category category = categoryDao.getById(id);
+
+            if(category == null)
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+
             categoryDao.delete(id);
-        }catch (Exception ex)
-        {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Oops..can't delete Category");
         }
-        // delete the category by id
+        catch(Exception ex)
+        {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Oops... our bad.");
+        }
     }
+
 }
